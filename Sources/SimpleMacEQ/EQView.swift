@@ -135,12 +135,20 @@ struct EQView: View {
     }
 }
 
-/// A vertical slider that snaps to 0.5 steps.
+/// A vertical slider that snaps to 0.5 steps. Also responds to the scroll
+/// wheel while the pointer hovers over it.
 struct VerticalSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
 
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var scrollMonitor: Any?
+    @State private var scrollAccumulator: CGFloat = 0
+
     private let knobSize: CGFloat = 14
+    private let step = 0.5
+    /// Trackpad scroll distance (in points) per step.
+    private let pointsPerStep: CGFloat = 8
 
     var body: some View {
         GeometryReader { geometry in
@@ -175,6 +183,54 @@ struct VerticalSlider: View {
                     value = (raw * 2).rounded() / 2
                 }
             )
+            .onHover { hovering in
+                if hovering && isEnabled {
+                    startScrollMonitor()
+                } else {
+                    stopScrollMonitor()
+                }
+            }
+            .onDisappear { stopScrollMonitor() }
         }
+    }
+
+    private func startScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollAccumulator = 0
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            handleScroll(event)
+            return nil
+        }
+    }
+
+    private func stopScrollMonitor() {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
+    }
+
+    private func handleScroll(_ event: NSEvent) {
+        // Ignore trackpad inertia so the value stops when the fingers do.
+        guard event.momentumPhase.isEmpty else { return }
+
+        // Moving the wheel / fingers up raises the gain, regardless of the
+        // natural scrolling setting.
+        var delta = event.scrollingDeltaY
+        if event.isDirectionInvertedFromDevice { delta = -delta }
+
+        let steps: Int
+        if event.hasPreciseScrollingDeltas {
+            scrollAccumulator += delta
+            let whole = (scrollAccumulator / pointsPerStep).rounded(.towardZero)
+            scrollAccumulator -= whole * pointsPerStep
+            steps = Int(whole)
+        } else {
+            steps = delta > 0 ? 1 : (delta < 0 ? -1 : 0)
+        }
+        guard steps != 0 else { return }
+
+        let stepped = value + Double(steps) * step
+        value = min(max(stepped, range.lowerBound), range.upperBound)
     }
 }
