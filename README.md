@@ -17,7 +17,8 @@ Requires macOS 14.2+ and Xcode 15.2+ (or the command line tools).
 open build/SimpleMacEQ.app
 ```
 
-Copy the app to `/Applications` to keep it. On first use, allow system
+Copy the app to `/Applications` to keep it, or run `./scripts/build-dmg.sh`
+for a disk image. Pushing a `v*` tag publishes a GitHub release with the `.dmg`. On first use, allow system
 audio capture: System Settings → Privacy & Security → Screen & System Audio
 Recording.
 
